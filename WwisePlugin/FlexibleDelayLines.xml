@@ -40,7 +40,9 @@ for the documentation about the plugin xml format
       </PlatformSupport>
     </PluginInfo>
     <Properties>
-      <!-- Delay Time in seconds -->
+      <!-- ========== RTPC PARAMETERS ========== -->
+
+      <!-- Delay Time in seconds (manual mode) -->
       <Property Name="DelayTime" Type="Real32" SupportRTPCType="Exclusive" DisplayName="Delay Time (s)">
         <UserInterface Step="0.01" Fine="0.001" Decimals="3" UIMax="2.73" />
         <DefaultValue>0.1</DefaultValue>
@@ -58,7 +60,7 @@ for the documentation about the plugin xml format
       <!-- Wet/Dry Mix -->
       <Property Name="WetDryMix" Type="Real32" SupportRTPCType="Exclusive" DisplayName="Wet/Dry Mix">
         <UserInterface Step="0.01" Fine="0.001" Decimals="3" UIMax="1.0" />
-        <DefaultValue>0.5</DefaultValue>
+        <DefaultValue>1.0</DefaultValue>
         <AudioEnginePropertyID>1</AudioEnginePropertyID>
         <Restrictions>
           <ValueRestriction>
@@ -96,6 +98,40 @@ for the documentation about the plugin xml format
               <Min>0.0</Min>
               <Max>450.0</Max>
             </Range>
+          </ValueRestriction>
+        </Restrictions>
+      </Property>
+
+      <!-- ========== NON-RTPC PARAMETERS ========== -->
+
+      <!-- Interpolation Type -->
+      <Property Name="InterpolationType" Type="Uint32" DisplayName="Interpolation Type">
+        <DefaultValue>0</DefaultValue>
+        <AudioEnginePropertyID>4</AudioEnginePropertyID>
+        <Restrictions>
+          <ValueRestriction>
+            <Enumeration Type="Uint32">
+              <Value DisplayName="Linear (Fastest)">0</Value>
+              <Value DisplayName="Power Complementary (Better with Noise)">1</Value>
+              <Value DisplayName="Polynomial 4-Point (Best for Tones)">2</Value>
+              <Value DisplayName="Hybrid (Oversampled + Interp)">3</Value>
+            </Enumeration>
+          </ValueRestriction>
+        </Restrictions>
+      </Property>
+
+      <!-- Oversampling Factor -->
+      <Property Name="OversamplingFactor" Type="Uint32" DisplayName="Oversampling">
+        <DefaultValue>1</DefaultValue>
+        <AudioEnginePropertyID>5</AudioEnginePropertyID>
+        <Restrictions>
+          <ValueRestriction>
+            <Enumeration Type="Uint32">
+              <Value DisplayName="None (1x) - Lowest CPU">1</Value>
+              <Value DisplayName="4x - Good Quality">4</Value>
+              <Value DisplayName="8x - Higher Quality">8</Value>
+              <Value DisplayName="16x - Highest Quality, High CPU">16</Value>
+            </Enumeration>
           </ValueRestriction>
         </Restrictions>
       </Property>

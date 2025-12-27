@@ -54,9 +54,13 @@ AKRESULT FlexibleDelayLinesFXParams::Init(AK::IAkPluginMemAlloc* in_pAllocator, 
     {
         // Initialize default parameters here
         RTPC.fDelayTime = 0.1f;
-        RTPC.fWetDryMix = 0.5f;
+        RTPC.fWetDryMix = 1.0f;
         RTPC.fFeedback = 0.0f;
         RTPC.fDistance = 10.0f;
+        
+        NonRTPC.interpolationType = 0;
+        NonRTPC.oversamplingFactor = 1;
+        
         m_paramChangeHandler.SetAllParamChanges();
         return AK_Success;
     }
@@ -80,6 +84,9 @@ AKRESULT FlexibleDelayLinesFXParams::SetParamsBlock(const void* in_pParamsBlock,
     RTPC.fWetDryMix = READBANKDATA(AkReal32, pParamsBlock, in_ulBlockSize);
     RTPC.fFeedback = READBANKDATA(AkReal32, pParamsBlock, in_ulBlockSize);
     RTPC.fDistance = READBANKDATA(AkReal32, pParamsBlock, in_ulBlockSize);
+    
+    NonRTPC.interpolationType = READBANKDATA(AkUInt32, pParamsBlock, in_ulBlockSize);
+    NonRTPC.oversamplingFactor = READBANKDATA(AkUInt32, pParamsBlock, in_ulBlockSize);
     
     CHECKBANKDATASIZE(in_ulBlockSize, eResult);
     m_paramChangeHandler.SetAllParamChanges();
@@ -109,6 +116,14 @@ AKRESULT FlexibleDelayLinesFXParams::SetParam(AkPluginParamID in_paramID, const 
     case PARAM_DISTANCE_ID:
         RTPC.fDistance = *((AkReal32*)in_pValue);
         m_paramChangeHandler.SetParamChange(PARAM_DISTANCE_ID);
+        break;
+    case PARAM_INTERPOLATIONTYPE_ID:
+        NonRTPC.interpolationType = *((AkUInt32*)in_pValue);
+        m_paramChangeHandler.SetParamChange(PARAM_INTERPOLATIONTYPE_ID);
+        break;
+    case PARAM_OVERSAMPLINGFACTOR_ID:
+        NonRTPC.oversamplingFactor = *((AkUInt32*)in_pValue);
+        m_paramChangeHandler.SetParamChange(PARAM_OVERSAMPLINGFACTOR_ID);
         break;
     default:
         eResult = AK_InvalidParameter;

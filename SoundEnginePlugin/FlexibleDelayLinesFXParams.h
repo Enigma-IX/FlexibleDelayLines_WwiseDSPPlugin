@@ -35,8 +35,10 @@ static const AkPluginParamID PARAM_DELAYTIME_ID = 0;
 static const AkPluginParamID PARAM_WETDRYMIX_ID = 1;
 static const AkPluginParamID PARAM_FEEDBACK_ID = 2;
 static const AkPluginParamID PARAM_DISTANCE_ID = 3;
+static const AkPluginParamID PARAM_INTERPOLATIONTYPE_ID = 4;
+static const AkPluginParamID PARAM_OVERSAMPLINGFACTOR_ID = 5;
 
-static const AkUInt32 NUM_PARAMS = 4;
+static const AkUInt32 NUM_PARAMS = 6;
 
 struct FlexibleDelayLinesRTPCParams
 {
@@ -48,6 +50,8 @@ struct FlexibleDelayLinesRTPCParams
 
 struct FlexibleDelayLinesNonRTPCParams
 {
+    AkUInt32 interpolationType;    // Interpolation method
+    AkUInt32 oversamplingFactor;   // Oversampling factor
 };
 
 struct FlexibleDelayLinesFXParams : public AK::IAkPluginParam
