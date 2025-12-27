@@ -40,20 +40,66 @@ for the documentation about the plugin xml format
       </PlatformSupport>
     </PluginInfo>
     <Properties>
-      <!-- Add your property definitions here -->
-      <Property Name="Placeholder" Type="Real32" SupportRTPCType="Exclusive" DisplayName="Placeholder">
-        <UserInterface Step="0.1" Fine="0.001" Decimals="3" UIMax="10" />
-        <DefaultValue>0.0</DefaultValue>
+      <!-- Delay Time in seconds -->
+      <Property Name="DelayTime" Type="Real32" SupportRTPCType="Exclusive" DisplayName="Delay Time (s)">
+        <UserInterface Step="0.01" Fine="0.001" Decimals="3" UIMax="2.73" />
+        <DefaultValue>0.1</DefaultValue>
         <AudioEnginePropertyID>0</AudioEnginePropertyID>
         <Restrictions>
           <ValueRestriction>
             <Range Type="Real32">
               <Min>0.001</Min>
-              <Max>1000</Max>
+              <Max>2.73</Max>
             </Range>
           </ValueRestriction>
         </Restrictions>
       </Property>
+
+      <!-- Wet/Dry Mix -->
+      <Property Name="WetDryMix" Type="Real32" SupportRTPCType="Exclusive" DisplayName="Wet/Dry Mix">
+        <UserInterface Step="0.01" Fine="0.001" Decimals="3" UIMax="1.0" />
+        <DefaultValue>0.5</DefaultValue>
+        <AudioEnginePropertyID>1</AudioEnginePropertyID>
+        <Restrictions>
+          <ValueRestriction>
+            <Range Type="Real32">
+              <Min>0.0</Min>
+              <Max>1.0</Max>
+            </Range>
+          </ValueRestriction>
+        </Restrictions>
+      </Property>
+
+      <!-- Feedback -->
+      <Property Name="Feedback" Type="Real32" SupportRTPCType="Exclusive" DisplayName="Feedback">
+        <UserInterface Step="0.01" Fine="0.001" Decimals="3" UIMax="0.95" />
+        <DefaultValue>0.0</DefaultValue>
+        <AudioEnginePropertyID>2</AudioEnginePropertyID>
+        <Restrictions>
+          <ValueRestriction>
+            <Range Type="Real32">
+              <Min>0.0</Min>
+              <Max>0.95</Max>
+            </Range>
+          </ValueRestriction>
+        </Restrictions>
+      </Property>
+
+      <!-- Distance in meters (automatic delay calculation, 0 = use DelayTime instead) -->
+      <Property Name="Distance" Type="Real32" SupportRTPCType="Exclusive" DisplayName="Distance (m)">
+        <UserInterface Step="1.0" Fine="0.1" Decimals="1" UIMax="450.0" />
+        <DefaultValue>10.0</DefaultValue>
+        <AudioEnginePropertyID>3</AudioEnginePropertyID>
+        <Restrictions>
+          <ValueRestriction>
+            <Range Type="Real32">
+              <Min>0.0</Min>
+              <Max>450.0</Max>
+            </Range>
+          </ValueRestriction>
+        </Restrictions>
+      </Property>
+
     </Properties>
   </EffectPlugin>
 </PluginModule>

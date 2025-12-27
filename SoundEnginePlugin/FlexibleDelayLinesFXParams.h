@@ -30,22 +30,27 @@ the specific language governing permissions and limitations under the License.
 #include <AK/SoundEngine/Common/IAkPlugin.h>
 #include <AK/Plugin/PluginServices/AkFXParameterChangeHandler.h>
 
-// Add parameters IDs here, those IDs should map to the AudioEnginePropertyID
-// attributes in the xml property definition.
-static const AkPluginParamID PARAM_PLACEHOLDER_ID = 0;
-static const AkUInt32 NUM_PARAMS = 1;
+// Parameter IDs
+static const AkPluginParamID PARAM_DELAYTIME_ID = 0;
+static const AkPluginParamID PARAM_WETDRYMIX_ID = 1;
+static const AkPluginParamID PARAM_FEEDBACK_ID = 2;
+static const AkPluginParamID PARAM_DISTANCE_ID = 3;
+
+static const AkUInt32 NUM_PARAMS = 4;
 
 struct FlexibleDelayLinesRTPCParams
 {
-    AkReal32 fPlaceholder;
+    AkReal32 fDelayTime;   // Delay Time in seconds
+    AkReal32 fWetDryMix;   // Wet/Dry Mix in percentage
+    AkReal32 fFeedback;    // Feedback in percentage
+    AkReal32 fDistance;    // Distance in meters for automatic delay time calculation
 };
 
 struct FlexibleDelayLinesNonRTPCParams
 {
 };
 
-struct FlexibleDelayLinesFXParams
-    : public AK::IAkPluginParam
+struct FlexibleDelayLinesFXParams : public AK::IAkPluginParam
 {
     FlexibleDelayLinesFXParams();
     FlexibleDelayLinesFXParams(const FlexibleDelayLinesFXParams& in_rParams);

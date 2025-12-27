@@ -28,11 +28,14 @@ the specific language governing permissions and limitations under the License.
 #define FlexibleDelayLinesFX_H
 
 #include "FlexibleDelayLinesFXParams.h"
+#include <math.h>
+
+#define MAX_BUFFER_LEN (131072) // 2^17 for ~2.73s at 48kHz
+#define BIT_MASK (MAX_BUFFER_LEN - 1)
 
 /// See https://www.audiokinetic.com/library/edge/?source=SDK&id=soundengine__plugins__effects.html
 /// for the documentation about effect plug-ins
-class FlexibleDelayLinesFX
-    : public AK::IAkInPlaceEffectPlugin
+class FlexibleDelayLinesFX : public AK::IAkInPlaceEffectPlugin
 {
 public:
     FlexibleDelayLinesFX();
@@ -62,9 +65,36 @@ public:
     AKRESULT TimeSkip(AkUInt32 in_uFrames) override;
 
 private:
+    // Linear interpolation
+    inline float Interpolate(float inputA, float inputB, float ratio)
+    {
+        return inputA * (1.0f - ratio) + inputB * ratio;
+    }
+    
+    // Per-Channel delay line State
+    struct DelayLineChannel
+    {
+        float* buffer;
+        int writePos;
+        float lastDelayTime;
+        
+        DelayLineChannel()
+            : buffer(nullptr)
+            , writePos(0)
+            , lastDelayTime(0.0f)
+        {}        
+    };    
+    
     FlexibleDelayLinesFXParams* m_pParams;
     AK::IAkPluginMemAlloc* m_pAllocator;
     AK::IAkEffectPluginContext* m_pContext;
+    
+    DelayLineChannel* m_delayLines;
+    AkUInt32 m_numChannels;
+    float m_sampleRate;
+    float m_SamplesPerMeter;
+    
+    static constexpr float SPEED_OF_SOUND = 343.0f; // in m/s
 };
 
 #endif // FlexibleDelayLinesFX_H

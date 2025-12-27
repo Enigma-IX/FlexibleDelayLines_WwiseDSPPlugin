@@ -45,6 +45,10 @@ FlexibleDelayLinesFX::FlexibleDelayLinesFX()
     : m_pParams(nullptr)
     , m_pAllocator(nullptr)
     , m_pContext(nullptr)
+    , m_delayLines(nullptr)
+    , m_numChannels(0)
+    , m_sampleRate(48000.0f)
+    , m_SamplesPerMeter(0.0f)
 {
 }
 
@@ -57,18 +61,67 @@ AKRESULT FlexibleDelayLinesFX::Init(AK::IAkPluginMemAlloc* in_pAllocator, AK::IA
     m_pParams = (FlexibleDelayLinesFXParams*)in_pParams;
     m_pAllocator = in_pAllocator;
     m_pContext = in_pContext;
+    
+    m_numChannels = in_rFormat.GetNumChannels();
+    m_sampleRate = (float)in_rFormat.uSampleRate;
+    m_SamplesPerMeter = m_sampleRate / SPEED_OF_SOUND;
+    
+    // Allocate delay line array
+    m_delayLines = (DelayLineChannel*)AK_PLUGIN_ALLOC(in_pAllocator, sizeof(DelayLineChannel) * m_numChannels);
+    if (m_delayLines == nullptr)
+        return AK_InsufficientMemory;
+    
+    // Initialize each channel's delay line
+    for (AkUInt32 i = 0; i < m_numChannels; ++i)
+    {
+        // Manual initialization instead of placement new
+        m_delayLines[i].buffer = nullptr;
+        m_delayLines[i].writePos = 0;
+        m_delayLines[i].lastDelayTime = 0.0f;
+        
+        m_delayLines[i].buffer = (float*)AK_PLUGIN_ALLOC(in_pAllocator, sizeof(float) * MAX_BUFFER_LEN);
+        if (m_delayLines[i].buffer == nullptr)
+            return AK_InsufficientMemory;
+        
+        // Clear buffer
+        memset(m_delayLines[i].buffer, 0, sizeof(float) * MAX_BUFFER_LEN);
+        m_delayLines[i].writePos = 0;
+        m_delayLines[i].lastDelayTime = m_pParams->RTPC.fDelayTime;
+    }
 
     return AK_Success;
 }
 
 AKRESULT FlexibleDelayLinesFX::Term(AK::IAkPluginMemAlloc* in_pAllocator)
 {
+    if (m_delayLines != nullptr)
+    {
+        for (AkUInt32 i = 0; i < m_numChannels; ++i)
+        {
+            if (m_delayLines[i].buffer)
+            {
+                AK_PLUGIN_FREE(in_pAllocator, m_delayLines[i].buffer);
+            }
+        }
+        AK_PLUGIN_FREE(in_pAllocator, m_delayLines);
+    }
+    
     AK_PLUGIN_DELETE(in_pAllocator, this);
     return AK_Success;
 }
 
 AKRESULT FlexibleDelayLinesFX::Reset()
 {
+    for (AkUInt32 i = 0; i < m_numChannels; ++i)
+    {
+        if (m_delayLines[i].buffer != nullptr)
+        {
+            memset(m_delayLines[i].buffer, 0, sizeof(float) * MAX_BUFFER_LEN);
+            m_delayLines[i].writePos = 0;
+            m_delayLines[i].lastDelayTime = m_pParams->RTPC.fDelayTime;
+        }
+    }
+    
     return AK_Success;
 }
 
@@ -83,23 +136,60 @@ AKRESULT FlexibleDelayLinesFX::GetPluginInfo(AkPluginInfo& out_rPluginInfo)
 
 void FlexibleDelayLinesFX::Execute(AkAudioBuffer* io_pBuffer)
 {
-    const AkUInt32 uNumChannels = io_pBuffer->NumChannels();
-
-    AkUInt16 uFramesProcessed;
-    for (AkUInt32 i = 0; i < uNumChannels; ++i)
+    const AkUInt16 uValidFrames = io_pBuffer->uValidFrames;
+    
+    float currentDelayTime;
+    if (m_pParams->RTPC.fDistance > 0.0f)
+        currentDelayTime = (m_pParams->RTPC.fDistance * 2.0f) / SPEED_OF_SOUND;
+    else
+        currentDelayTime = m_pParams->RTPC.fDelayTime;
+    
+    float wetDryMix = m_pParams->RTPC.fWetDryMix;
+    
+    for (AkUInt32 chan = 0; chan < m_numChannels; ++chan)
     {
-        AkReal32* AK_RESTRICT pBuf = (AkReal32* AK_RESTRICT)io_pBuffer->GetChannel(i);
-
-        uFramesProcessed = 0;
-        while (uFramesProcessed < io_pBuffer->uValidFrames)
+        DelayLineChannel& delayLine = m_delayLines[chan];
+        float* pChannel = io_pBuffer->GetChannel(chan);
+        
+        float timeGradient = (currentDelayTime - delayLine.lastDelayTime) / (float)uValidFrames;
+        float currDelayTime = delayLine.lastDelayTime;
+        
+        for (AkUInt16 frame = 0; frame < uValidFrames; ++frame)
         {
-            // Execute DSP in-place here
-            ++uFramesProcessed;
+            
+            float samplesDelayed = currDelayTime * m_sampleRate;
+            int wholeSampleDelay = (int)samplesDelayed;
+            float subSampleDelay = samplesDelayed - (float)wholeSampleDelay;
+            
+            int readPosA = (delayLine.writePos - wholeSampleDelay) & BIT_MASK;
+            int readPosB = (delayLine.writePos - wholeSampleDelay - 1) & BIT_MASK;
+            
+            float valueA = delayLine.buffer[readPosA];
+            float valueB = delayLine.buffer[readPosB];
+            float delayedSample = Interpolate(valueA, valueB, subSampleDelay);
+            
+            float feedback = m_pParams->RTPC.fFeedback;
+            float inputWithFeedback = pChannel[frame] + delayedSample * feedback;
+            
+            delayLine.buffer[delayLine.writePos] = inputWithFeedback;
+            
+            delayLine.writePos = (delayLine.writePos + 1) & BIT_MASK;
+            
+            pChannel[frame] = pChannel[frame] * (1.0f - wetDryMix) + delayedSample * wetDryMix;
+            
+            currDelayTime += timeGradient;
         }
+        
+        delayLine.lastDelayTime = currentDelayTime;
     }
 }
 
 AKRESULT FlexibleDelayLinesFX::TimeSkip(AkUInt32 in_uFrames)
 {
+    for (AkUInt32 chan = 0; chan < m_numChannels; ++chan)
+    {
+        m_delayLines[chan].writePos = (m_delayLines[chan].writePos + in_uFrames) & BIT_MASK;
+    }
+    
     return AK_DataReady;
 }

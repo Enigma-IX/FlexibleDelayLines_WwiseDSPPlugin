@@ -53,7 +53,10 @@ AKRESULT FlexibleDelayLinesFXParams::Init(AK::IAkPluginMemAlloc* in_pAllocator, 
     if (in_ulBlockSize == 0)
     {
         // Initialize default parameters here
-        RTPC.fPlaceholder = 0.0f;
+        RTPC.fDelayTime = 0.1f;
+        RTPC.fWetDryMix = 0.5f;
+        RTPC.fFeedback = 0.0f;
+        RTPC.fDistance = 10.0f;
         m_paramChangeHandler.SetAllParamChanges();
         return AK_Success;
     }
@@ -73,7 +76,11 @@ AKRESULT FlexibleDelayLinesFXParams::SetParamsBlock(const void* in_pParamsBlock,
     AkUInt8* pParamsBlock = (AkUInt8*)in_pParamsBlock;
 
     // Read bank data here
-    RTPC.fPlaceholder = READBANKDATA(AkReal32, pParamsBlock, in_ulBlockSize);
+    RTPC.fDelayTime = READBANKDATA(AkReal32, pParamsBlock, in_ulBlockSize);
+    RTPC.fWetDryMix = READBANKDATA(AkReal32, pParamsBlock, in_ulBlockSize);
+    RTPC.fFeedback = READBANKDATA(AkReal32, pParamsBlock, in_ulBlockSize);
+    RTPC.fDistance = READBANKDATA(AkReal32, pParamsBlock, in_ulBlockSize);
+    
     CHECKBANKDATASIZE(in_ulBlockSize, eResult);
     m_paramChangeHandler.SetAllParamChanges();
 
@@ -87,9 +94,21 @@ AKRESULT FlexibleDelayLinesFXParams::SetParam(AkPluginParamID in_paramID, const 
     // Handle parameter change here
     switch (in_paramID)
     {
-    case PARAM_PLACEHOLDER_ID:
-        RTPC.fPlaceholder = *((AkReal32*)in_pValue);
-        m_paramChangeHandler.SetParamChange(PARAM_PLACEHOLDER_ID);
+    case PARAM_DELAYTIME_ID:
+        RTPC.fDelayTime = *((AkReal32*)in_pValue);
+        m_paramChangeHandler.SetParamChange(PARAM_DELAYTIME_ID);
+        break;
+    case PARAM_WETDRYMIX_ID:
+        RTPC.fWetDryMix = *((AkReal32*)in_pValue);
+        m_paramChangeHandler.SetParamChange(PARAM_WETDRYMIX_ID);
+        break;
+    case PARAM_FEEDBACK_ID:
+        RTPC.fFeedback = *((AkReal32*)in_pValue);
+        m_paramChangeHandler.SetParamChange(PARAM_FEEDBACK_ID);
+        break;
+    case PARAM_DISTANCE_ID:
+        RTPC.fDistance = *((AkReal32*)in_pValue);
+        m_paramChangeHandler.SetParamChange(PARAM_DISTANCE_ID);
         break;
     default:
         eResult = AK_InvalidParameter;
