@@ -89,7 +89,7 @@ for the documentation about the plugin xml format
 
       <!-- Distance in meters (automatic delay calculation, 0 = use DelayTime instead) -->
       <Property Name="Distance" Type="Real32" SupportRTPCType="Exclusive" DisplayName="Distance (m)">
-        <UserInterface Step="1.0" Fine="0.1" Decimals="1" UIMax="450.0" />
+        <UserInterface Step="0.01" Fine="0.001" Decimals="3" UIMax="450.0" />
         <DefaultValue>10.0</DefaultValue>
         <AudioEnginePropertyID>3</AudioEnginePropertyID>
         <Restrictions>
@@ -131,6 +131,21 @@ for the documentation about the plugin xml format
               <Value DisplayName="4x - Good Quality">4</Value>
               <Value DisplayName="8x - Higher Quality">8</Value>
               <Value DisplayName="16x - Highest Quality, High CPU">16</Value>
+            </Enumeration>
+          </ValueRestriction>
+        </Restrictions>
+      </Property>
+
+      <!-- Upsample Method -->
+      <Property Name="UpsamplingMethod" Type="Uint32" DisplayName="Upsampling Method">
+        <DefaultValue>0</DefaultValue>
+        <AudioEnginePropertyID>4</AudioEnginePropertyID>
+        <Restrictions>
+          <ValueRestriction>
+            <Enumeration Type="Uint32">
+              <Value DisplayName="Linear - Lowest CPU">0</Value>
+              <Value DisplayName="Simple Sinc - Higher CPU">1</Value>
+              <Value DisplayName="Polyphase (WIP)">2</Value>
             </Enumeration>
           </ValueRestriction>
         </Restrictions>

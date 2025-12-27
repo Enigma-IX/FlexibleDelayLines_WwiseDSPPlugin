@@ -45,6 +45,7 @@ bool FlexibleDelayLinesPlugin::GetBankParameters(const GUID & in_guidPlatform, A
     
     in_dataWriter.WriteUInt32(m_propertySet.GetUInt32(in_guidPlatform, "InterpolationType"));
     in_dataWriter.WriteUInt32(m_propertySet.GetUInt32(in_guidPlatform, "OversamplingFactor"));
+    in_dataWriter.WriteUInt32(m_propertySet.GetUInt32(in_guidPlatform, "UpsamplingMethod"));
 
     return true;
 }

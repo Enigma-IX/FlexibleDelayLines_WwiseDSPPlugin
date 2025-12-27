@@ -60,6 +60,7 @@ AKRESULT FlexibleDelayLinesFXParams::Init(AK::IAkPluginMemAlloc* in_pAllocator, 
         
         NonRTPC.interpolationType = 0;
         NonRTPC.oversamplingFactor = 1;
+        NonRTPC.upsamplingMethod = 0;
         
         m_paramChangeHandler.SetAllParamChanges();
         return AK_Success;
@@ -87,6 +88,7 @@ AKRESULT FlexibleDelayLinesFXParams::SetParamsBlock(const void* in_pParamsBlock,
     
     NonRTPC.interpolationType = READBANKDATA(AkUInt32, pParamsBlock, in_ulBlockSize);
     NonRTPC.oversamplingFactor = READBANKDATA(AkUInt32, pParamsBlock, in_ulBlockSize);
+    NonRTPC.upsamplingMethod = READBANKDATA(AkUInt32, pParamsBlock, in_ulBlockSize);
     
     CHECKBANKDATASIZE(in_ulBlockSize, eResult);
     m_paramChangeHandler.SetAllParamChanges();
@@ -124,6 +126,10 @@ AKRESULT FlexibleDelayLinesFXParams::SetParam(AkPluginParamID in_paramID, const 
     case PARAM_OVERSAMPLINGFACTOR_ID:
         NonRTPC.oversamplingFactor = *((AkUInt32*)in_pValue);
         m_paramChangeHandler.SetParamChange(PARAM_OVERSAMPLINGFACTOR_ID);
+        break;
+    case PARAM_UPSAMPLINGMETHOD_ID:
+        NonRTPC.upsamplingMethod = *((AkUInt32*)in_pValue);
+        m_paramChangeHandler.SetParamChange(PARAM_UPSAMPLINGMETHOD_ID);
         break;
     default:
         eResult = AK_InvalidParameter;

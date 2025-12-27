@@ -130,6 +130,22 @@ AKRESULT FlexibleDelayLinesFX::Init(AK::IAkPluginMemAlloc* in_pAllocator, AK::IA
     int oversampleFactor = m_pParams->NonRTPC.oversamplingFactor;
     InitializeFIRCoefficients(oversampleFactor);
     
+    // Stocker le function pointer selon le choix
+    switch (m_pParams->NonRTPC.upsamplingMethod)
+    {
+    case UPSAMPLE_POLYPHASE:
+        m_upsampleFunction = &FlexibleDelayLinesFX::PolyphaseUpsample;
+        break;
+    case UPSAMPLE_LINEAR:
+        m_upsampleFunction = &FlexibleDelayLinesFX::LinearUpsample;
+        break;
+    case UPSAMPLE_SIMPLE_SINC:
+        m_upsampleFunction = &FlexibleDelayLinesFX::SimpleSincUpsample;
+        break;
+    default:
+        m_upsampleFunction = &FlexibleDelayLinesFX::LinearUpsample;
+    }
+    
     // Allocate delay line array
     m_pDelayLines = (DelayLineChannel*)AK_PLUGIN_ALLOC(in_pAllocator, sizeof(DelayLineChannel) * m_uNumChannels);
     if (m_pDelayLines == nullptr)
@@ -155,12 +171,16 @@ AKRESULT FlexibleDelayLinesFX::Init(AK::IAkPluginMemAlloc* in_pAllocator, AK::IA
         {
             m_pDelayLines[i].oversampledBuffer = (float*)AK_PLUGIN_ALLOC(in_pAllocator,
                 sizeof(float) * MAX_BUFFER_LEN * oversampleFactor);
-            
-            if (m_pDelayLines[i].oversampledBuffer == nullptr)
+    
+            int maxBufferFrames = MAX_BUFFER_LEN;
+            m_pDelayLines[i].tempUpsampledInput = (float*)AK_PLUGIN_ALLOC(in_pAllocator,
+                sizeof(float) * maxBufferFrames * oversampleFactor);
+    
+            m_pDelayLines[i].tempDelayedOutput = (float*)AK_PLUGIN_ALLOC(in_pAllocator,
+                sizeof(float) * maxBufferFrames * oversampleFactor);
+    
+            if (!m_pDelayLines[i].tempUpsampledInput || !m_pDelayLines[i].tempDelayedOutput)
                 return AK_InsufficientMemory;
-            
-            memset(m_pDelayLines[i].oversampledBuffer, 0, 
-                sizeof(float) * MAX_BUFFER_LEN * oversampleFactor);
         }
     }
 
@@ -180,10 +200,13 @@ AKRESULT FlexibleDelayLinesFX::Term(AK::IAkPluginMemAlloc* in_pAllocator)
         for (AkUInt32 i = 0; i < m_uNumChannels; ++i)
         {
             if (m_pDelayLines[i].buffer)
-                AK_PLUGIN_FREE(in_pAllocator, m_pDelayLines[i].buffer);
-            
+                AK_PLUGIN_FREE(in_pAllocator, m_pDelayLines[i].buffer);            
             if (m_pDelayLines[i].oversampledBuffer)
-                AK_PLUGIN_FREE(in_pAllocator, m_pDelayLines[i].oversampledBuffer);
+                AK_PLUGIN_FREE(in_pAllocator, m_pDelayLines[i].oversampledBuffer);            
+            if (m_pDelayLines[i].tempUpsampledInput)
+                AK_PLUGIN_FREE(in_pAllocator, m_pDelayLines[i].tempUpsampledInput);
+            if (m_pDelayLines[i].tempDelayedOutput)
+                AK_PLUGIN_FREE(in_pAllocator, m_pDelayLines[i].tempDelayedOutput);
         }
         AK_PLUGIN_FREE(in_pAllocator, m_pDelayLines);
     }
@@ -219,33 +242,127 @@ AKRESULT FlexibleDelayLinesFX::GetPluginInfo(AkPluginInfo& out_rPluginInfo)
     return AK_Success;
 }
 
+void FlexibleDelayLinesFX::SimpleSincUpsample(float* input, float* output, int inputLength, int factor)
+{
+    if (factor <= 1)
+    {
+        memcpy(output, input, sizeof(float) * inputLength);
+        return;
+    }
+    
+    int outputLength = inputLength * factor;
+    
+    // Pour chaque échantillon de sortie
+    for (int outIdx = 0; outIdx < outputLength; ++outIdx)
+    {
+        // Position fractionnaire dans l'input
+        float inputPos = (float)outIdx / (float)factor;
+        int baseIdx = (int)inputPos;
+        float frac = inputPos - (float)baseIdx;
+        
+        // Interpolation sinc sur une fenêtre de 8 échantillons (compromis qualité/perf)
+        float sum = 0.0f;
+        const int SINC_WINDOW = 8;
+        
+        for (int i = -SINC_WINDOW/2; i < SINC_WINDOW/2; ++i)
+        {
+            int idx = baseIdx + i;
+            if (idx >= 0 && idx < inputLength)
+            {
+                float x = frac - (float)i;
+                
+                // Fonction sinc: sin(π*x) / (π*x)
+                float sincVal;
+                if (fabsf(x) < 0.0001f)
+                {
+                    sincVal = 1.0f;
+                }
+                else
+                {
+                    float pix = PI * x;
+                    sincVal = sinf(pix) / pix;
+                }
+                
+                // Fenêtre de Blackman pour réduire les artefacts
+                float window = 0.42f - 0.5f * cosf(2.0f * PI * ((float)i + SINC_WINDOW/2) / (float)SINC_WINDOW)
+                             + 0.08f * cosf(4.0f * PI * ((float)i + SINC_WINDOW/2) / (float)SINC_WINDOW);
+                
+                sum += input[idx] * sincVal * window;
+            }
+        }
+        
+        output[outIdx] = sum;
+    }
+}
+
+void FlexibleDelayLinesFX::LinearUpsample(float* input, float* output, int inputLength, int factor)
+{
+    if (factor <= 1)
+    {
+        memcpy(output, input, sizeof(float) * inputLength);
+        return;
+    }
+    
+    const float invFactor = 1.0f / (float)factor;
+    int outputLength = inputLength * factor;
+    
+    // Traiter les échantillons complets
+    int lastCompleteInput = inputLength - 1;
+    int lastCompleteOutput = lastCompleteInput * factor;
+    
+    for (int outIdx = 0; outIdx < lastCompleteOutput; ++outIdx)
+    {
+        float inputPos = (float)outIdx * invFactor;
+        int idx0 = (int)inputPos;
+        float frac = inputPos - (float)idx0;
+        
+        float val0 = input[idx0];
+        float val1 = input[idx0 + 1];
+        output[outIdx] = val0 + frac * (val1 - val0); // Optimisé: 1 mul au lieu de 2
+    }
+    
+    // Traiter les derniers échantillons (boundary)
+    for (int outIdx = lastCompleteOutput; outIdx < outputLength; ++outIdx)
+    {
+        output[outIdx] = input[inputLength - 1];
+    }
+}
+
 void FlexibleDelayLinesFX::PolyphaseUpsample(float* input, float* output, int inputLength, int factor)
 {
     if (factor <= 1 || !m_pFIRCoefficients)
-        return;
-    
-    for (int i = 0; i < inputLength; ++i)
     {
-        output[i * factor] = input[i];
-        for (int j = 1; j < factor; ++j)
-            output[i * factor + j] = 0.0f;
+        // Pas d'oversampling - copie directe
+        memcpy(output, input, sizeof(float) * inputLength);
+        return;
     }
     
-    // Apply polyphase FIR filter
+    int outputLength = inputLength * factor;
     int halfLength = m_FIRLength / 2;
     
-    for (int i = 0; i < inputLength * factor; ++i)
+    // Pour chaque échantillon de sortie oversampleé
+    for (int i = 0; i < outputLength; ++i)
     {
         float sum = 0.0f;
+        
+        // Position dans l'input original (peut être fractionnaire)
+        float inputPos = (float)i / (float)factor;
+        int baseInputIndex = (int)inputPos;
+        
+        // Appliquer le filtre FIR
         for (int j = 0; j < m_FIRLength; ++j)
         {
-            int sampleIndex = i - halfLength + j;
-            if (sampleIndex >= 0 && sampleIndex < inputLength * factor)
-                if (sampleIndex % factor == 0)
-                    sum += output[sampleIndex] * m_pFIRCoefficients[j] * (float)factor;
-        }
+            // Index dans l'input original
+            int inputIndex = baseInputIndex - halfLength + j;
             
-        output[i] = sum;
+            // Boundary check
+            if (inputIndex >= 0 && inputIndex < inputLength)
+            {
+                sum += input[inputIndex] * m_pFIRCoefficients[j];
+            }
+        }
+        
+        output[i] = sum * (float)factor;
     }
 }
 
@@ -291,7 +408,7 @@ void FlexibleDelayLinesFX::Execute(AkAudioBuffer* io_pBuffer)
         // Calculate Doppler shift (for monitoring/debugging)
         float bufferDuration = (float)uValidFrames / m_fSampleRate;
         float dopplerVelocity = CalculateDopplerShift(currentDelayTime, delayLine.lastDelayTime, bufferDuration);
-        (void)dopplerVelocity; // Suppress unused warning - Doppler is implicit!
+        (void)dopplerVelocity;
         
         // Time gradient for smooth delay changes
         float timeGradient = (currentDelayTime - delayLine.lastDelayTime) / (float)uValidFrames;
@@ -302,16 +419,19 @@ void FlexibleDelayLinesFX::Execute(AkAudioBuffer* io_pBuffer)
         {
             // ==================== OVERSAMPLED PATH ====================
             
-            // Upsample input buffer
-            PolyphaseUpsample(pChannel, delayLine.oversampledBuffer, uValidFrames, oversampleFactor);
+            float* tempUpsampledInput = delayLine.tempUpsampledInput;
+            float* tempDelayedOutput = delayLine.tempDelayedOutput;
+            
+            (this->*m_upsampleFunction)(pChannel, tempUpsampledInput, uValidFrames, oversampleFactor);            
             
             int oversampledFrames = uValidFrames * oversampleFactor;
             float oversampledTimeGradient = timeGradient / (float)oversampleFactor;
+            float currDelayTimeOS = currDelayTime;
             
             // Process oversampled samples
             for (int frame = 0; frame < oversampledFrames; ++frame)
             {
-                float samplesDelayed = currDelayTime * m_fSampleRate * (float)oversampleFactor;
+                float samplesDelayed = currDelayTimeOS * m_fSampleRate * (float)oversampleFactor;
                 int wholeSampleDelay = (int)samplesDelayed;
                 float subSampleDelay = samplesDelayed - (float)wholeSampleDelay;
                 
@@ -320,32 +440,33 @@ void FlexibleDelayLinesFX::Execute(AkAudioBuffer* io_pBuffer)
                 
                 float valueA = delayLine.oversampledBuffer[readPosA];
                 float valueB = delayLine.oversampledBuffer[readPosB];
-                float delayedSample;
                 
-                // Simple linear for oversampled (Hybrid approach)
-                if (interpType == INTERP_HYBRID)
+                float delayedSample;
+                if (interpType == INTERP_HYBRID || interpType == INTERP_LINEAR)
                 {
                     delayedSample = InterpolateLinear(valueA, valueB, subSampleDelay);
                 }
                 else
                 {
-                    // Pick nearest oversampled value (quantized to oversample grid)
                     delayedSample = valueA;
                 }
                 
-                // Apply feedback
-                float inputWithFeedback = delayLine.oversampledBuffer[frame] + (delayedSample * feedback);
+                tempDelayedOutput[frame] = delayedSample;
+                
+                float inputWithFeedback = tempUpsampledInput[frame] + (delayedSample * feedback);
+                
                 delayLine.oversampledBuffer[delayLine.writePos] = inputWithFeedback;
                 
                 delayLine.writePos = (delayLine.writePos + 1) & (delayLine.effectiveBufferSize - 1);
-                currDelayTime += oversampledTimeGradient;
+                
+                currDelayTimeOS += oversampledTimeGradient;
             }
             
-            // Downsample back to original rate (simple decimation)
             for (AkUInt16 frame = 0; frame < uValidFrames; ++frame)
             {
-                int oversampledIdx = frame * oversampleFactor;
-                float delayedSample = delayLine.oversampledBuffer[oversampledIdx];
+                float delayedSample = tempDelayedOutput[frame * oversampleFactor];
+                
+                // Mix wet/dry
                 pChannel[frame] = pChannel[frame] * (1.0f - wetDryMix) + delayedSample * wetDryMix;
             }
         }

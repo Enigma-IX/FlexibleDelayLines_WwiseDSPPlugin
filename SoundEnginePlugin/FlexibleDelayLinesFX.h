@@ -49,6 +49,13 @@ enum OversamplingFactor
     OVERSAMPLE_16X = 16
 };
 
+enum UpSamplingMethod
+{
+    UPSAMPLE_LINEAR = 0,
+    UPSAMPLE_SIMPLE_SINC = 1,
+    UPSAMPLE_POLYPHASE = 2
+};
+
 /// See https://www.audiokinetic.com/library/edge/?source=SDK&id=soundengine__plugins__effects.html
 /// for the documentation about effect plug-ins
 class FlexibleDelayLinesFX : public AK::IAkInPlaceEffectPlugin
@@ -135,7 +142,9 @@ private:
     void UpsampleBuffer(float* input, float* output, int inputLength, int factor);
     
     // Polyphase FIR filter for efficient upsampling
-    void PolyphaseUpsample(float* input, float* output, int inputLength, int factor);
+    void LinearUpsample(float* input, float* output, int inputLength, int factor);
+    void SimpleSincUpsample(float* input, float* output, int inputLength, int factor);
+    void PolyphaseUpsample(float* input, float* output, int inputLength, int factor);    
     
     // ==================== DELAY LINE CHANNEL ====================
     
@@ -144,6 +153,8 @@ private:
     {
         float* buffer;
         float* oversampledBuffer;
+        float* tempUpsampledInput;
+        float* tempDelayedOutput;
         int writePos;
         float lastDelayTime;
         int oversampleFactor;
@@ -173,6 +184,9 @@ private:
     
     float* m_pFIRCoefficients;
     int m_FIRLength;
+    
+    typedef void (FlexibleDelayLinesFX::*UpsampleFuncPtr)(float*, float*, int, int);
+    UpsampleFuncPtr m_upsampleFunction;
     
     static constexpr float SPEED_OF_SOUND = 343.0f; // in m/s
     static constexpr float PI = 3.14159265358979323846f;
