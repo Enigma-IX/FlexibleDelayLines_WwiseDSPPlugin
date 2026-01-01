@@ -163,6 +163,8 @@ private:
         DelayLineChannel()
             : buffer(nullptr)
             , oversampledBuffer(nullptr)
+            , tempUpsampledInput(nullptr)
+            , tempDelayedOutput(nullptr)
             , writePos(0)
             , lastDelayTime(0.0f)
             , oversampleFactor(OVERSAMPLE_NONE)

@@ -415,7 +415,10 @@ void FlexibleDelayLinesFX::Execute(AkAudioBuffer* io_pBuffer)
         float currDelayTime = delayLine.lastDelayTime;
         
         // Choose processing path based on oversampling
-        if (oversampleFactor > 1 && delayLine.oversampledBuffer)
+        if (oversampleFactor > 1 
+            && delayLine.oversampledBuffer
+            && delayLine.tempUpsampledInput 
+            && delayLine.tempDelayedOutput)
         {
             // ==================== OVERSAMPLED PATH ====================
             

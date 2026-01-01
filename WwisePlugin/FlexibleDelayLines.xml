@@ -139,7 +139,7 @@ for the documentation about the plugin xml format
       <!-- Upsample Method -->
       <Property Name="UpsamplingMethod" Type="Uint32" DisplayName="Upsampling Method">
         <DefaultValue>0</DefaultValue>
-        <AudioEnginePropertyID>4</AudioEnginePropertyID>
+        <AudioEnginePropertyID>6</AudioEnginePropertyID>
         <Restrictions>
           <ValueRestriction>
             <Enumeration Type="Uint32">
